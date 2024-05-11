@@ -6,6 +6,7 @@
 #include <strsafe.h>
 #include "Mute.h"
 #include "resource.h"
+#include "WinCheck.h"
 
 namespace {
 
@@ -30,7 +31,7 @@ void OnBtnMain_Clicked(HWND hWnd) {
 			btnIsStarted = false;
 		}
 		else {
-			MessageBoxW(hWnd, L"Failed to unregister hotkey.", szTitle, MB_ICONERROR);
+			ParseWindowsSystemError(L"MuteHotKey: Failed to Unregister Hotkey");
 		}
 	}
 	else {
@@ -39,7 +40,7 @@ void OnBtnMain_Clicked(HWND hWnd) {
 			btnIsStarted = true;
 		}
 		else {
-			MessageBoxW(hWnd, L"Failed to register hotkey.", szTitle, MB_ICONERROR);
+			ParseWindowsSystemError(L"MuteHotKey: Failed to Register Hotkey");
 		}
 	}
 	return;

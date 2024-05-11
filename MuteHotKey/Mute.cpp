@@ -7,8 +7,6 @@
 #include <audiopolicy.h>
 #include <audioclient.h>
 
-//#include <guiddef.h>
-//#include <initguid.h>
 #pragma comment(lib,"Strmiids.lib") 
 
 #include <iostream>
@@ -23,43 +21,23 @@ void DoSessionCtrl(IAudioSessionControl* pSessionCtrl) {
 	HRESULT hr = {};
 	IAudioSessionControl2* ctrl = nullptr;
 	hr = pSessionCtrl->QueryInterface<IAudioSessionControl2>(&ctrl);
-	if (hr != S_OK) {
+	if (hr != S_OK)
 		return;
-	}
-
-	if (ctrl->IsSystemSoundsSession() == S_OK) {
+	if (ctrl->IsSystemSoundsSession() == S_OK) // 不操作系统会话
 		return;
-	}
-
 	ISimpleAudioVolume* vol = nullptr;
 	hr = pSessionCtrl->QueryInterface<ISimpleAudioVolume>(&vol);
-	if (hr != S_OK) {
-		//std::cout << "<Failed to Read>.";
+	if (hr != S_OK)
 		return;
-	}
-	//float volume = 0.0f;
-	//hr = vol->GetMasterVolume(&volume);
-	//if (hr == S_OK) {
-	//	std::cout << "vol: " << volume << '.';
-	//}
-	//else {
-	//	std::cout << "vol: <Failed to Get>.";
-	//}
-
 	DWORD apid = NULL;
-	if (ctrl->GetProcessId(&apid) == S_OK) {
-		//std::cout << " PID: " << apid;
-		if (apid == pid) {
-			BOOL muted = {};
-			if (vol->GetMute(&muted) == S_OK) {
-				if (vol->SetMute(!muted, NULL) != S_OK) {
-					//std::cout << "Failed";
-					;
-				}
-			}
-		}
-	}
-	std::cout << std::endl;
+	if (ctrl->GetProcessId(&apid) != S_OK)
+		return;
+	if (apid != pid)
+		return;
+	BOOL muted = {};
+	if (vol->GetMute(&muted) != S_OK)
+		return;
+	vol->SetMute(!muted, NULL);
 	return;
 }
 
@@ -67,10 +45,8 @@ void DeviceEnumSession(IMMDevice* pDevice) {
 	HRESULT hr = {};
 	IAudioSessionManager2* pSessionMngr = nullptr;
 	hr = pDevice->Activate(IID_IAudioSessionManager2, CLSCTX_ALL, NULL, (void**)&pSessionMngr);
-	if (hr != S_OK) {
-		//std::cout << "DoDevice failed!" << std::endl;
+	if (hr != S_OK)
 		return;
-	}
 	IAudioSessionEnumerator* pSessionEnum = nullptr;
 	hr = pSessionMngr->GetSessionEnumerator(&pSessionEnum);
 	if (hr == S_OK) {
@@ -88,9 +64,6 @@ void DeviceEnumSession(IMMDevice* pDevice) {
 		}
 		pSessionEnum->Release();
 	}
-	//else {
-	//	std::cout << "Failed: GetSessionEnumerator()." << std::endl;
-	//}
 	pSessionMngr->Release();
 }
 
@@ -98,11 +71,8 @@ void EnumDevice() {
 	HRESULT hr = {};
 	IMMDeviceEnumerator* pDevEnum = nullptr;
 	hr = CoCreateInstance(CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, IID_IMMDeviceEnumerator, (void**)&pDevEnum);
-	if (hr != S_OK) {
-		//std::cout << "Failed: CoCreateInstance()." << std::endl;
+	if (hr != S_OK)
 		return;
-	}
-
 	IMMDeviceCollection* pDevCol = nullptr;
 	hr = pDevEnum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pDevCol);
 	if (hr == S_OK) {
@@ -112,42 +82,34 @@ void EnumDevice() {
 			for (UINT i = 0; i < cnt; ++i) {
 				IMMDevice* pDevice = nullptr;
 				hr = pDevCol->Item(i, &pDevice);
-				if (hr != S_OK) {
-					//std::cout << "Failed: Item()." << std::endl;
+				if (hr != S_OK)
 					continue;
-				}
 				DeviceEnumSession(pDevice);
 				pDevice->Release();
 			}
 		}
-		//else {
-		//	std::cout << "Failed: GetCount()." << std::endl;
-		//}
 		pDevCol->Release();
 	}
-	//else {
-	//	std::cout << "Failed: EnumAudioEndpoints()." << std::endl;
-	//}
-
 	pDevEnum->Release();
 	return;
 }
 
 void TryMute() {
-
 	HWND hwnd = GetForegroundWindow();
-
-	if (hwnd == NULL) {
+	if (hwnd == NULL)
 		return;
-	}
-
 	pid = NULL;
-
-	if (GetWindowThreadProcessId(hwnd, &pid) == 0) {
+	if (GetWindowThreadProcessId(hwnd, &pid) == 0)
 		return;
+	try {
+		EnumDevice();
 	}
-
-	EnumDevice();
-
+	catch (std::exception& e) {
+		MessageBoxA(NULL, e.what(), "MuteHotKey: Task Exception", MB_ICONERROR);
+	}
+	catch (...) {
+		MessageBoxA(NULL, "Unknown Exception.", "MuteHotKey: Task Exception", MB_ICONERROR);
+	}
+	pid = NULL;
 	return;
 }
