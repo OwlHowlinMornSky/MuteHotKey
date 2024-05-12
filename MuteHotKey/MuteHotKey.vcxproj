@@ -135,16 +135,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AppGlobal.h" />
+    <ClInclude Include="ContextMenu.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Mute.h" />
+    <ClInclude Include="RegSettings.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Win32.h" />
     <ClInclude Include="WinCheck.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AppGlobal.cpp" />
+    <ClCompile Include="ContextMenu.cpp" />
     <ClCompile Include="Mute.cpp" />
-    <ClCompile Include="MuteHotKey.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="RegSettings.cpp" />
     <ClCompile Include="Win32.cpp" />
     <ClCompile Include="WinCheck.cpp" />
   </ItemGroup>

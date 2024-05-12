@@ -7,6 +7,9 @@
 #include "Mute.h"
 #include "resource.h"
 #include "WinCheck.h"
+#include "AppGlobal.h"
+#include "RegSettings.h"
+#include "ContextMenu.h"
 
 namespace {
 
@@ -16,31 +19,44 @@ WCHAR szWindowClass[MAX_LOADSTRING]; // 主窗口类名
 
 WCHAR szSTOP[MAX_LOADSTRING];
 WCHAR szSTART[MAX_LOADSTRING];
+WCHAR szStartAtRun[MAX_LOADSTRING];
+WCHAR szHideAfterStart[MAX_LOADSTRING];
 
 constexpr UINT MYWM_CALLBACK = WM_APP + 233;
 constexpr int NOTIFYICON_ID = 233;
 
 HFONT hFont = NULL;
 HWND hBtnMain = NULL;
+HWND hBtnSettingStartAtRun = NULL;
+HWND hBtnSettingHideAfterStart = NULL;
 bool btnIsStarted = false;
 
 void OnBtnMain_Clicked(HWND hWnd) {
 	if (btnIsStarted) {
 		if (UnregisterHotKey(hWnd, 999)) {
 			SetWindowTextW(hBtnMain, szSTART);
+			//EnableWindow(hBtnSettingStartAtRun, TRUE);
+			//EnableWindow(hBtnSettingHideAfterStart, TRUE);
 			btnIsStarted = false;
 		}
 		else {
-			ParseWindowsSystemError(L"MuteHotKey: Failed to Unregister Hotkey");
+			ParseWin32Error(AppNameW + L": Failed to Unregister Hotkey");
 		}
 	}
 	else {
+		SetStartAtRun(Button_GetCheck(hBtnSettingStartAtRun) == BST_CHECKED);
+		SetHideAfterStart(Button_GetCheck(hBtnSettingHideAfterStart) == BST_CHECKED);
 		if (RegisterHotKey(hWnd, 999, MOD_CONTROL | MOD_NOREPEAT, VK_OEM_COMMA)) {
 			SetWindowTextW(hBtnMain, szSTOP);
+			//EnableWindow(hBtnSettingStartAtRun, FALSE);
+			//EnableWindow(hBtnSettingHideAfterStart, FALSE);
+			if (GetHideAfterStart()) {
+				SendMessageW(hWnd, WM_SYSCOMMAND, SC_MINIMIZE | HTCAPTION, NULL);
+			}
 			btnIsStarted = true;
 		}
 		else {
-			ParseWindowsSystemError(L"MuteHotKey: Failed to Register Hotkey");
+			ParseWin32Error(AppNameW + L": Failed to Register Hotkey");
 		}
 	}
 	return;
@@ -55,6 +71,8 @@ void TryRemoveHotKey(HWND hWnd) {
 		btnIsStarted = false;
 	}
 }
+
+ContextMenu g_contextMenu;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	switch (message) {
@@ -73,14 +91,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		hBtnMain = CreateWindowW(
 			WC_BUTTONW, szSTART,
 			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-			81, 40, 100, 40,
+			130, 40, 100, 40,
 			hWnd, NULL, GetModuleHandleW(NULL), NULL
 		);
 		SendMessageW(hBtnMain, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+		hBtnSettingStartAtRun = CreateWindowW(
+			WC_BUTTONW, szStartAtRun,
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+			20, 20, 100, 40,
+			hWnd, NULL, GetModuleHandleW(NULL), NULL
+		);
+		SendMessageW(hBtnSettingStartAtRun, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+		hBtnSettingHideAfterStart = CreateWindowW(
+			WC_BUTTONW, szHideAfterStart,
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+			20, 60, 100, 40,
+			hWnd, NULL, GetModuleHandleW(NULL), NULL
+		);
+		SendMessageW(hBtnSettingHideAfterStart, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+		Button_SetCheck(hBtnSettingStartAtRun, GetStartAtRun() ? BST_CHECKED : BST_UNCHECKED);
+		Button_SetCheck(hBtnSettingHideAfterStart, GetHideAfterStart() ? BST_CHECKED : BST_UNCHECKED);
+
+		if (GetStartAtRun())
+			OnBtnMain_Clicked(hWnd);
 		break;
 
 	case WM_DESTROY:
 		TryRemoveHotKey(hWnd); // 保底注销热键
+		SetStartAtRun(Button_GetCheck(hBtnSettingStartAtRun) == BST_CHECKED);
+		SetHideAfterStart(Button_GetCheck(hBtnSettingHideAfterStart) == BST_CHECKED);
 
 		DestroyWindow(hBtnMain);
 		DeleteObject(hFont);
@@ -94,6 +136,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		if (HIWORD(wParam) == BN_CLICKED) {
 			if ((HWND)lParam == hBtnMain) {
 				OnBtnMain_Clicked(hWnd);
+			}
+			else if (LOWORD(wParam) == ContextMenu::Exit) {
+				PostMessageW(hWnd, WM_CLOSE, NULL, NULL);
 			}
 		}
 		break;
@@ -117,6 +162,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	case MYWM_CALLBACK:
 		if (LOWORD(lParam) == NIN_SELECT)
 			ShowWindow(hWnd, SW_RESTORE);
+		else if (LOWORD(lParam) == WM_CONTEXTMENU)
+			g_contextMenu.Pop(hWnd, GET_X_LPARAM(wParam), GET_Y_LPARAM(wParam));
 		break;
 
 	default:
@@ -134,6 +181,15 @@ void MyLoadString(HINSTANCE hInst) {
 
 	LoadStringW(hInst, IDS_STOP, szSTOP, MAX_LOADSTRING);
 	LoadStringW(hInst, IDS_START, szSTART, MAX_LOADSTRING);
+	LoadStringW(hInst, IDS_STRING106, szStartAtRun, MAX_LOADSTRING);
+	LoadStringW(hInst, IDS_STRING107, szHideAfterStart, MAX_LOADSTRING);
+
+	AppNameW.assign(szTitle);
+
+	CHAR szTitleA[MAX_LOADSTRING];
+	LoadStringA(hInst, IDS_APP_TITLE, szTitleA, MAX_LOADSTRING);
+
+	AppNameA.assign(szTitleA);
 	return;
 }
 
@@ -160,8 +216,10 @@ HWND MyCreateWindow(HINSTANCE hInst, int nCmdShow) {
 	);
 	if (!hWnd)
 		return NULL;
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
+	if (!(GetStartAtRun() && GetHideAfterStart())) {
+		ShowWindow(hWnd, nCmdShow);
+		UpdateWindow(hWnd);
+	}
 	return hWnd;
 }
 

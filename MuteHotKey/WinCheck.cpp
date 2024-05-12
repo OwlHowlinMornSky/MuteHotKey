@@ -4,8 +4,8 @@
 
 #include <string>
 
-void ParseWindowsSystemError(std::wstring_view errorText) {
-	DWORD lasterrcode = GetLastError();
+void ParseErrorCode(long code, std::wstring_view errorText) {
+	DWORD lasterrcode = code;
 	LPWSTR pBuffer = NULL;
 	std::wstring msgstr_en, msgstr_user;
 	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -31,4 +31,8 @@ void ParseWindowsSystemError(std::wstring_view errorText) {
 	}
 	MessageBoxW(NULL, msgstr_en.data(), errorText.data(), MB_ICONERROR);
 	return;
+}
+
+void ParseWin32Error(std::wstring_view errorText) {
+	return ParseErrorCode(GetLastError(), errorText);
 }

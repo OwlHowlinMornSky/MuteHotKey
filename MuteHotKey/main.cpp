@@ -2,6 +2,9 @@
 #include "framework.h"
 #include "Resource.h"
 #include "Win32.h"
+#include "AppGlobal.h"
+#include "WinCheck.h"
+#include "RegSettings.h"
 
 #include <combaseapi.h>
 
@@ -15,33 +18,39 @@ int APIENTRY wWinMain(
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
 	MyLoadString(hInstance);
+	LoadSettings();
 
 	HRESULT hr = {};
-	hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // Thread With UI
 	//hr = CoInitializeEx(NULL, COINIT_MULTITHREADED); // Thread Without UI
+	hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // Thread With UI
 	switch (hr) {
 	case S_OK:
 	case S_FALSE:
-	case RPC_E_CHANGED_MODE:
 		break;
+	case RPC_E_CHANGED_MODE:
+		ParseErrorCode(hr, AppNameW + L": COM Warning");
+		break;
+	case E_INVALIDARG:
+	case E_OUTOFMEMORY:
+	case E_UNEXPECTED:
 	default:
-		MessageBoxW(NULL, L"Failed to initialize COM!", L"MuteHotKey", MB_ICONERROR);
+		ParseErrorCode(hr, AppNameW + L": Failed to Initialize COM");
 		return 1;
 	}
 
 	if (!MyRegisterClass(hInstance)) {
-		MessageBoxW(NULL, L"Failed to register window class!", L"MuteHotKey", MB_ICONERROR);
+		ParseWin32Error(AppNameW + L": Failed to Register Window Class");
 		return 1;
 	}
 
 	HWND hwnd = MyCreateWindow(hInstance, nCmdShow);
 	if (hwnd == NULL) {
-		MessageBoxW(NULL, L"Failed to create window!", L"MuteHotKey", MB_ICONERROR);
+		ParseWin32Error(AppNameW + L": Failed to Create Window");
 		return 1;
 	}
 
 	if (!MyAddNotifyIcon(hInstance, hwnd)) {
-		MessageBoxW(NULL, L"Failed to create notify icon!", L"MuteHotKey", MB_ICONERROR);
+		MessageBoxW(NULL, L"Failed to Create Notify Icon!", AppNameW.data(), MB_ICONERROR);
 		return 1;
 	}
 
@@ -51,9 +60,13 @@ int APIENTRY wWinMain(
 		DispatchMessageW(&msg);
 	}
 
+	DestroyWindow(hwnd);
+
 	MyRemoveNotifyIcon();
 
 	CoUninitialize();
+
+	SaveSettings();
 
 	return 0;
 }

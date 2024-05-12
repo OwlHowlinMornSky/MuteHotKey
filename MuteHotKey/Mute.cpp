@@ -1,6 +1,5 @@
 ﻿
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include "framework.h"
 
 #include <combaseapi.h>
 #include <mmdeviceapi.h>
@@ -9,7 +8,11 @@
 
 #pragma comment(lib,"Strmiids.lib") 
 
-#include <iostream>
+#include <exception>
+#include "AppGlobal.h"
+#include "Mute.h"
+
+namespace {
 
 static const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
 static const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
@@ -94,6 +97,12 @@ void EnumDevice() {
 	return;
 }
 
+} // namespace
+
+bool InitCOM() {
+    return false;
+}
+
 void TryMute() {
 	HWND hwnd = GetForegroundWindow();
 	if (hwnd == NULL)
@@ -105,11 +114,13 @@ void TryMute() {
 		EnumDevice();
 	}
 	catch (std::exception& e) {
-		MessageBoxA(NULL, e.what(), "MuteHotKey: Task Exception", MB_ICONERROR);
+		MessageBoxA(NULL, e.what(), (AppNameA + ": Task Exception").data(), MB_ICONERROR);
 	}
 	catch (...) {
-		MessageBoxA(NULL, "Unknown Exception.", "MuteHotKey: Task Exception", MB_ICONERROR);
+		MessageBoxA(NULL, "Unknown Exception.", (AppNameA + ": Task Exception").data(), MB_ICONERROR);
 	}
 	pid = NULL;
 	return;
 }
+
+void DropCOM() {}

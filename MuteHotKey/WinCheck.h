@@ -2,4 +2,6 @@
 
 #include <string_view>
 
-void ParseWindowsSystemError(std::wstring_view errorText);
+void ParseErrorCode(long code, std::wstring_view errorText);
+
+void ParseWin32Error(std::wstring_view errorText);

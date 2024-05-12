@@ -7,7 +7,9 @@
 #define IDS_APP_TITLE                   103
 #define IDS_STOP                        104
 #define IDS_START                       105
+#define IDS_STRING106                   106
 #define IDI_MUTEHOTKEY                  107
+#define IDS_STRING107                   107
 #define IDI_SMALL                       108
 #define IDC_MUTEHOTKEY                  109
 #define IDR_MAINFRAME                   128
