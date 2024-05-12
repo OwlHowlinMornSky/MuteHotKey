@@ -30,6 +30,7 @@
 #include <exception>
 #include "AppGlobal.h"
 #include "Mute.h"
+#include "WinCheck.h"
 
 namespace {
 
@@ -78,10 +79,10 @@ void DeviceEnumSession(IMMDevice* pDevice) {
 			for (int i = 0; i < cnt; ++i) {
 				IAudioSessionControl* pSessionCtrl = nullptr;
 				hr = pSessionEnum->GetSession(i, &pSessionCtrl);
-				if (hr != S_OK)
-					continue;
-				DoSessionCtrl(pSessionCtrl);
-				pSessionCtrl->Release();
+				if (hr == S_OK)
+					DoSessionCtrl(pSessionCtrl);
+				if (pSessionCtrl)
+					pSessionCtrl->Release();
 			}
 		}
 		pSessionEnum->Release();
@@ -104,14 +105,15 @@ void EnumDevice() {
 			for (UINT i = 0; i < cnt; ++i) {
 				IMMDevice* pDevice = nullptr;
 				hr = pDevCol->Item(i, &pDevice);
-				if (hr != S_OK)
-					continue;
-				DeviceEnumSession(pDevice);
-				pDevice->Release();
+				if (hr == S_OK)
+					DeviceEnumSession(pDevice);
+				if (pDevice)
+					pDevice->Release();
 			}
 		}
-		pDevCol->Release();
 	}
+	if (pDevCol)
+		pDevCol->Release();
 	pDevEnum->Release();
 	return;
 }
@@ -119,7 +121,24 @@ void EnumDevice() {
 } // namespace
 
 bool InitCOM() {
-    return false;
+	HRESULT hr = {};
+	//hr = CoInitializeEx(NULL, COINIT_MULTITHREADED); // Thread Without UI
+	hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED); // Thread With UI
+	switch (hr) {
+	case S_OK:
+	case S_FALSE:
+		break;
+	case RPC_E_CHANGED_MODE:
+		ParseErrorCode(hr, AppNameW + L": COM Warning");
+		break;
+	case E_INVALIDARG:
+	case E_OUTOFMEMORY:
+	case E_UNEXPECTED:
+	default:
+		ParseErrorCode(hr, AppNameW + L": Failed to Initialize COM");
+		return false;
+	}
+	return true;
 }
 
 void TryMute() {
@@ -142,4 +161,6 @@ void TryMute() {
 	return;
 }
 
-void DropCOM() {}
+void DropCOM() {
+	CoUninitialize();
+}
