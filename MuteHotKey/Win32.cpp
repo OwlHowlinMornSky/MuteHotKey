@@ -29,14 +29,30 @@ HFONT hFont = NULL;
 HWND hBtnMain = NULL;
 HWND hBtnSettingStartAtRun = NULL;
 HWND hBtnSettingHideAfterStart = NULL;
+HWND hHot = NULL;
 bool btnIsStarted = false;
+
+UINT ModFromCode(WORD wHotkey) {
+	UINT res = 0;
+	BYTE code = HIBYTE(wHotkey);
+	if (code & HOTKEYF_SHIFT)
+		res |= MOD_SHIFT;
+	if (code & HOTKEYF_CONTROL)
+		res |= MOD_CONTROL;
+	if (code & HOTKEYF_ALT)
+		res |= MOD_ALT;
+	return res;
+}
+
+UINT VkFromCode(WORD wHotkey) {
+	return LOBYTE(wHotkey);
+}
 
 void OnBtnMain_Clicked(HWND hWnd) {
 	if (btnIsStarted) {
 		if (UnregisterHotKey(hWnd, 999)) {
 			SetWindowTextW(hBtnMain, szSTART);
-			//EnableWindow(hBtnSettingStartAtRun, TRUE);
-			//EnableWindow(hBtnSettingHideAfterStart, TRUE);
+			EnableWindow(hHot, TRUE);
 			btnIsStarted = false;
 		}
 		else {
@@ -46,16 +62,26 @@ void OnBtnMain_Clicked(HWND hWnd) {
 	else {
 		SetStartAtRun(Button_GetCheck(hBtnSettingStartAtRun) == BST_CHECKED);
 		SetHideAfterStart(Button_GetCheck(hBtnSettingHideAfterStart) == BST_CHECKED);
-		if (RegisterHotKey(hWnd, 999, MOD_CONTROL | MOD_NOREPEAT, VK_OEM_COMMA)) {
+
+		EnableWindow(hHot, FALSE);
+
+		SetHotKeySettings((WORD)SendMessageW(hHot, HKM_GETHOTKEY, 0, 0));
+
+		if (GetHotKeySettings() == 0) {
+			MessageBoxW(hWnd, L"Please set a hotkey combination.", AppNameW.data(), MB_ICONINFORMATION);
+			EnableWindow(hHot, TRUE);
+			return;
+		}
+
+		if (RegisterHotKey(hWnd, 999, ModFromCode(GetHotKeySettings()) | MOD_NOREPEAT, VkFromCode(GetHotKeySettings()))) {
 			SetWindowTextW(hBtnMain, szSTOP);
-			//EnableWindow(hBtnSettingStartAtRun, FALSE);
-			//EnableWindow(hBtnSettingHideAfterStart, FALSE);
 			if (GetHideAfterStart()) {
 				SendMessageW(hWnd, WM_SYSCOMMAND, SC_MINIMIZE | HTCAPTION, NULL);
 			}
 			btnIsStarted = true;
 		}
 		else {
+			EnableWindow(hHot, TRUE);
 			ParseWin32Error(AppNameW + L": Failed to Register Hotkey");
 		}
 	}
@@ -63,13 +89,16 @@ void OnBtnMain_Clicked(HWND hWnd) {
 }
 
 /**
- * @brief 尝试注销热键（保底）。
+ * @brief 保底注销热键，同时这是读取设置的最后机会。
  */
-void TryRemoveHotKey(HWND hWnd) {
+void OnWindowDestroy(HWND hWnd) {
 	if (UnregisterHotKey(hWnd, 999)) {
 		SetWindowTextW(hBtnMain, szSTART);
 		btnIsStarted = false;
 	}
+	SetStartAtRun(Button_GetCheck(hBtnSettingStartAtRun) == BST_CHECKED);
+	SetHideAfterStart(Button_GetCheck(hBtnSettingHideAfterStart) == BST_CHECKED);
+	SetHotKeySettings((WORD)SendMessageW(hHot, HKM_GETHOTKEY, 0, 0));
 }
 
 ContextMenu g_contextMenu;
@@ -88,26 +117,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			L"Segoe UI"
 		);
 
-		hBtnMain = CreateWindowW(
+		hBtnMain = CreateWindowExW(
+			0,
 			WC_BUTTONW, szSTART,
 			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-			130, 40, 100, 40,
+			130, 60, 100, 40,
 			hWnd, NULL, GetModuleHandleW(NULL), NULL
 		);
 		SendMessageW(hBtnMain, WM_SETFONT, (WPARAM)hFont, TRUE);
 
-		hBtnSettingStartAtRun = CreateWindowW(
+		hBtnSettingStartAtRun = CreateWindowExW(
+			0,
 			WC_BUTTONW, szStartAtRun,
 			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
-			20, 20, 100, 40,
+			20, 50, 100, 30,
 			hWnd, NULL, GetModuleHandleW(NULL), NULL
 		);
 		SendMessageW(hBtnSettingStartAtRun, WM_SETFONT, (WPARAM)hFont, TRUE);
 
-		hBtnSettingHideAfterStart = CreateWindowW(
+		hBtnSettingHideAfterStart = CreateWindowExW(
+			0,
 			WC_BUTTONW, szHideAfterStart,
 			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
-			20, 60, 100, 40,
+			20, 80, 100, 30,
 			hWnd, NULL, GetModuleHandleW(NULL), NULL
 		);
 		SendMessageW(hBtnSettingHideAfterStart, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -115,15 +147,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		Button_SetCheck(hBtnSettingStartAtRun, GetStartAtRun() ? BST_CHECKED : BST_UNCHECKED);
 		Button_SetCheck(hBtnSettingHideAfterStart, GetHideAfterStart() ? BST_CHECKED : BST_UNCHECKED);
 
+		hHot = CreateWindowExW(
+			0,                                     // no extended styles 
+			HOTKEY_CLASSW,                         // class name 
+			L"",                                   // no title (caption) 
+			WS_TABSTOP | WS_CHILD | WS_VISIBLE,    // style 
+			15, 10,                                // position 
+			210, 30,                               // size 
+			hWnd,                                  // parent window 
+			NULL,                                  // uses class menu 
+			GetModuleHandleW(NULL),                // instance 
+			NULL                                   // no WM_CREATE parameter 
+		);
+		SendMessageW(hHot, WM_SETFONT, (WPARAM)hFont, TRUE);
+		SendMessageW(hHot, HKM_SETHOTKEY, GetHotKeySettings(), NULL);
+		SendMessageW(hHot, HKM_SETRULES, (WPARAM)HKCOMB_NONE, MAKELPARAM(HOTKEYF_ALT, 0));
+
 		if (GetStartAtRun())
 			OnBtnMain_Clicked(hWnd);
 		break;
 
 	case WM_DESTROY:
-		TryRemoveHotKey(hWnd); // 保底注销热键
-		SetStartAtRun(Button_GetCheck(hBtnSettingStartAtRun) == BST_CHECKED);
-		SetHideAfterStart(Button_GetCheck(hBtnSettingHideAfterStart) == BST_CHECKED);
+		OnWindowDestroy(hWnd);
 
+		DestroyWindow(hHot);
+		DestroyWindow(hBtnSettingHideAfterStart);
+		DestroyWindow(hBtnSettingStartAtRun);
 		DestroyWindow(hBtnMain);
 		DeleteObject(hFont);
 		break;
