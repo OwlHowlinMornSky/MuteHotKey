@@ -31,6 +31,7 @@ namespace {
 bool g_startAtRun = false;
 bool g_hideAfterStart = false;
 uint16_t g_hotkeyCode = 0;
+bool g_loadSucceed = false;
 
 bool LoadBoolFromReg(std::wstring_view name, bool& value) {
 	DWORD type = REG_DWORD;
@@ -229,10 +230,13 @@ bool LoadSettings() {
 		return false;
 	if (!LoadBoolFromReg(L"HideAfterStart", g_hideAfterStart))
 		return false;
+	g_loadSucceed = true;
 	return true;
 }
 
 bool SaveSettings() {
+	if (!g_loadSucceed)
+		return false;
 	SaveBoolToReg(L"HideAfterStart", g_hideAfterStart);
 	SaveBoolToReg(L"StartAtRun", g_startAtRun);
 	SaveCodeToReg(g_hotkeyCode);
